@@ -6,7 +6,7 @@ def midpoint_circle(xc, yc, r):
 
     x = 0
     y = r
-    d = 1 - r  # initial decision parameter
+    d = 1 - r
 
     def plot_points(x, y):
         # 8-way symmetry
