@@ -9,7 +9,6 @@ def midpoint_circle(xc, yc, r):
     d = 1 - r
 
     def plot_points(x, y):
-        # 8-way symmetry
         x_points.extend([xc+x, xc-x, xc+x, xc-x, xc+y, xc-y, xc+y, xc-y])
         y_points.extend([yc+y, yc+y, yc-y, yc-y, yc+x, yc+x, yc-x, yc-x])
 
