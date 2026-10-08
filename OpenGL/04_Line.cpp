@@ -26,7 +26,7 @@ int main(int argc, char** argv)
     glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
 
     glutInitWindowSize(700, 500);
-    glutCreateWindow("Point");
+    glutCreateWindow("Lines");
 
     glutDisplayFunc(display);
 
