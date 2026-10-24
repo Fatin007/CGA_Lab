@@ -4,7 +4,15 @@ void display()
 {
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glColor3f(1, 0, 0);
+    glColor3f(0, 0, 0);
+    glBegin(GL_QUADS);
+        glVertex2f(-0.61f,  0.1f);
+        glVertex2f( 0.61f,  0.1f);
+        glVertex2f( 0.61f, -0.61f);
+        glVertex2f(-0.61f, -0.61f);
+    glEnd();
+
+    glColor3f(1, 1, 0); // Yellow
     glBegin(GL_QUADS);
         glVertex2f(-0.6f,  0.1f);
         glVertex2f( 0.6f,  0.1f);
@@ -12,7 +20,14 @@ void display()
         glVertex2f(-0.6f, -0.6f);
     glEnd();
 
-    glColor3f(0, 0, 1);
+    glColor3f(0, 0, 0);
+    glBegin(GL_TRIANGLES);
+        glVertex2f(-0.72f,  0.09f);
+        glVertex2f( 0.72f,  0.09f);
+        glVertex2f( 0.00f,  0.61f);
+    glEnd();
+
+    glColor3f(1, 0, 0);
     glBegin(GL_TRIANGLES);
         glVertex2f(-0.7f,  0.1f);
         glVertex2f( 0.7f,  0.1f);
@@ -27,7 +42,8 @@ void display()
         glVertex2f(-0.11f, -0.6f);
     glEnd();
 
-    glColor3f(1, 1, 0); // Yellow
+    // Brown door
+    glColor3f(0.5f, 0.2f, 0.0f); // Brown
     glBegin(GL_QUADS);
         glVertex2f(-0.1f,  -0.1f);
         glVertex2f( 0.1f,  -0.1f);
@@ -44,14 +60,23 @@ void display()
         glVertex2f(-0.51f, -0.31f);
     glEnd();
 
-    glColor3f(1, 1, 0); // Yellow
+    glColor3f(0.5f, 0.8f, 1.0f); // skyblue
     glBegin(GL_QUADS);
         glVertex2f(-0.5f, -0.1f);
         glVertex2f(-0.3f, -0.1f);
         glVertex2f(-0.3f, -0.3f);
         glVertex2f(-0.5f, -0.3f);
     glEnd();
-    
+
+    glColor3f(0, 0, 0);
+    glBegin(GL_LINES);
+        glVertex2f(-0.4f, -0.1f);
+        glVertex2f(-0.4f, -0.3f);
+
+        glVertex2f(-0.5f, -0.2f);
+        glVertex2f(-0.3f, -0.2f);
+    glEnd();
+
     // window 2
     glColor3f(0, 0, 0);
     glBegin(GL_QUADS);
@@ -61,12 +86,21 @@ void display()
         glVertex2f(0.51f, -0.31f);
     glEnd();
 
-    glColor3f(1, 1, 0); // Yellow
+    glColor3f(0.5f, 0.8f, 1.0f); // skyblue
     glBegin(GL_QUADS);
         glVertex2f(0.5f, -0.1f);
         glVertex2f(0.3f, -0.1f);
         glVertex2f(0.3f, -0.3f);
         glVertex2f(0.5f, -0.3f);
+    glEnd();
+
+    glColor3f(0, 0, 0);
+    glBegin(GL_LINES);
+        glVertex2f(0.4f, -0.1f);
+        glVertex2f(0.4f, -0.3f);
+
+        glVertex2f(0.5f, -0.2f);
+        glVertex2f(0.3f, -0.2f);
     glEnd();
 
     glFlush();
@@ -81,6 +115,7 @@ int main(int argc, char** argv)
     glutInitWindowSize(700, 500);
     glutCreateWindow("House");
 
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glutDisplayFunc(display);
 
     glutMainLoop();

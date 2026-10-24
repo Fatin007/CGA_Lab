@@ -1,0 +1,12 @@
+# Build output
+chess.exe
+*.o
+*.obj
+
+# Test executables
+_test_*.exe
+
+# The runtime DLLs are copied in from MSYS2 by build.bat, so they do not
+# need to be tracked. Remove these two lines if you would rather commit them
+# so the game can be run without MSYS2 installed.
+*.dll
