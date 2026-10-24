@@ -8,15 +8,17 @@
 //     axial tilt
 //   * Saturn's rings
 //   * a field of background stars
+//   * the asteroid belt between Mars and Jupiter
 //
-// The whole thing is drawn with GLSL shaders. There are five shader
+// The whole thing is drawn with GLSL shaders. There are six shader
 // programs:
 //
-//   planet.* -- the planets, lit by the sun, with procedural surface bands
-//   sun.*    -- the sun itself and its corona
-//   star.*   -- the background stars
-//   ring.*   -- Saturn's rings, with the planet's shadow on them
-//   line.*   -- the faint orbit lines
+//   planet.*   -- the planets, lit by the sun, with procedural surface bands
+//   sun.*      -- the sun itself and its corona
+//   star.*     -- the background stars
+//   ring.*     -- Saturn's rings, with the planet's shadow on them
+//   line.*     -- the faint orbit lines
+//   asteroid.* -- the rocky belt between Mars and Jupiter
 //
 // Controls are listed in the console when the program starts.
 

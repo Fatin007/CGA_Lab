@@ -37,9 +37,17 @@ struct Camera
 
     // The limits. The pitch is clamped so the camera never goes directly
     // above or below the sun, where the view would look strange.
+    //
+    // The lower limit is -18 degrees rather than -85 for a good reason. At
+    // a shallow angle the orbits flatten into overlapping bands, and the
+    // planets that are further out pile up on top of the ones nearer the
+    // sun. Venus ends up looking as if it is touching Earth, and Jupiter
+    // as if it is sitting in the asteroid belt. Both are illusions caused
+    // by the viewing angle, but they are very confusing ones, so we simply
+    // do not let the camera get that low.
     static constexpr float MIN_DISTANCE = 3.0f;
     static constexpr float MAX_DISTANCE = 400.0f;
-    static constexpr float MIN_PITCH     = -85.0f;
+    static constexpr float MIN_PITCH     = -18.0f;
     static constexpr float MAX_PITCH     =  85.0f;
 
     // Where the camera actually is, in world space.
@@ -109,6 +117,10 @@ private:
     // Draws the background stars.
     void draw_stars(const math3d::Mat4& view, const math3d::Mat4& projection, float time);
 
+    // Draws the asteroid belt.
+    void draw_asteroids(const math3d::Mat4& view, const math3d::Mat4& projection,
+                        float time);
+
     // Draws the orbit lines.
     void draw_orbits(const SolarSystem& system,
                      const math3d::Mat4& view, const math3d::Mat4& projection,
@@ -126,6 +138,7 @@ private:
     Shader star_shader_;
     Shader ring_shader_;
     Shader line_shader_;
+    Shader asteroid_shader_;
 
     bool shaders_ok_ = false;
 
@@ -157,4 +170,9 @@ private:
     unsigned int star_vao_ = 0;
     unsigned int star_vbo_ = 0;
     int star_count_ = 0;
+
+    // The asteroid belt: one big buffer of points.
+    unsigned int asteroid_vao_ = 0;
+    unsigned int asteroid_vbo_ = 0;
+    int asteroid_count_ = 0;
 };

@@ -27,35 +27,49 @@ namespace
         math3d::Vec3 base_colour;
         math3d::Vec3 band_colour;
         float band_strength;
+
+        // The rings. Only used when has_rings is true.
+        math3d::Vec3 ring_colour;
+        float ring_brightness;
+        float ring_inner;
+        float ring_outer;
     };
 
     // The order is Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus,
     // Neptune -- from the inside out.
     const PlanetData PLANET_DATA[] = {
-        // name       radius  dist  year   day     tilt   rings  base colour        band colour        band
+        // name       radius  dist  year   day     tilt   rings  base colour        band colour        band   ring colour         ring   inner  outer
         { "Mercury", 0.383f, 0.39f, 0.241f, 1408.0f,  0.0f, false,
-          {0.55f, 0.50f, 0.45f}, {0.42f, 0.38f, 0.35f}, 0.20f },
+          {0.55f, 0.50f, 0.45f}, {0.42f, 0.38f, 0.35f}, 0.20f,
+          {0.0f, 0.0f, 0.0f}, 0.0f, 0.0f, 0.0f },
 
         { "Venus",   0.949f, 0.72f, 0.615f, -5832.0f,  2.6f, false,
-          {0.85f, 0.72f, 0.45f}, {0.95f, 0.85f, 0.60f}, 0.55f },
+          {0.85f, 0.72f, 0.45f}, {0.95f, 0.85f, 0.60f}, 0.55f,
+          {0.0f, 0.0f, 0.0f}, 0.0f, 0.0f, 0.0f },
 
         { "Earth",   1.000f, 1.00f, 1.000f,   24.0f, 23.4f, false,
-          {0.20f, 0.42f, 0.85f}, {0.30f, 0.60f, 0.35f}, 0.60f },
+          {0.20f, 0.42f, 0.85f}, {0.30f, 0.60f, 0.35f}, 0.60f,
+          {0.0f, 0.0f, 0.0f}, 0.0f, 0.0f, 0.0f },
 
         { "Mars",    0.532f, 1.52f, 1.881f,   24.6f, 25.2f, false,
-          {0.78f, 0.36f, 0.20f}, {0.55f, 0.25f, 0.15f}, 0.45f },
+          {0.78f, 0.36f, 0.20f}, {0.55f, 0.25f, 0.15f}, 0.45f,
+          {0.0f, 0.0f, 0.0f}, 0.0f, 0.0f, 0.0f },
 
         { "Jupiter", 11.21f, 5.20f, 11.86f,    9.9f,  3.1f, false,
-          {0.85f, 0.72f, 0.55f}, {0.65f, 0.50f, 0.38f}, 0.65f },
+          {0.85f, 0.72f, 0.55f}, {0.65f, 0.50f, 0.38f}, 0.65f,
+          {0.0f, 0.0f, 0.0f}, 0.0f, 0.0f, 0.0f },
 
         { "Saturn",  9.45f, 9.58f, 29.46f,   10.7f, 26.7f, true,
-          {0.85f, 0.75f, 0.52f}, {0.70f, 0.62f, 0.45f}, 0.55f },
+          {0.85f, 0.75f, 0.52f}, {0.70f, 0.62f, 0.45f}, 0.55f,
+          {0.88f, 0.80f, 0.62f}, 1.00f, 1.25f, 2.20f },
 
         { "Uranus",  4.01f, 19.20f, 84.01f,   17.2f, 97.8f, true,
-          {0.45f, 0.75f, 0.80f}, {0.50f, 0.80f, 0.85f}, 0.30f },
+          {0.45f, 0.75f, 0.80f}, {0.50f, 0.80f, 0.85f}, 0.30f,
+          {0.50f, 0.53f, 0.58f}, 0.42f, 1.55f, 2.05f },
 
         { "Neptune", 3.88f, 30.05f, 164.8f,   16.1f, 28.3f, false,
-          {0.25f, 0.35f, 0.85f}, {0.35f, 0.45f, 0.95f}, 0.35f },
+          {0.25f, 0.35f, 0.85f}, {0.35f, 0.45f, 0.95f}, 0.35f,
+          {0.0f, 0.0f, 0.0f}, 0.0f, 0.0f, 0.0f },
     };
 
     constexpr int PLANET_COUNT = sizeof(PLANET_DATA) / sizeof(PLANET_DATA[0]);
@@ -96,6 +110,10 @@ SolarSystem::SolarSystem()
         planet.band_strength    = data.band_strength;
         planet.axial_tilt_degrees = data.axial_tilt;
         planet.has_rings        = data.has_rings;
+        planet.ring_colour      = data.ring_colour;
+        planet.ring_brightness  = data.ring_brightness;
+        planet.ring_inner_radius = data.ring_inner;
+        planet.ring_outer_radius = data.ring_outer;
 
         // --- Compress the size ---
         //
@@ -131,14 +149,44 @@ SolarSystem::SolarSystem()
 
         // --- Starting positions ---
         //
-        // We spread the planets out around the sun so they do not all start
-        // in a line. Each one starts at a slightly different angle.
-        planet.orbit_angle    = static_cast<float>(i) * 1.1f;
+        // We spread the planets out around the sun so that no two of them
+        // start on the same line of sight from the camera.
+        //
+        // This matters more than it sounds. When two planets sit at nearly
+        // the same angle, they line up with the sun, and from a low camera
+        // angle they collapse into the same few pixels -- they look like
+        // they are touching even though they are millions of miles apart.
+        //
+        // We use the golden angle, 137.5 degrees, to step from one planet to
+        // the next. It is called "golden" because it is the angle that gives
+        // the most even spread when you keep stepping by it, and it has a
+        // lovely side effect: after only eight steps no two of the planets
+        // are anywhere near each other.
+        planet.orbit_angle    = static_cast<float>(i) * 2.39996323f; // 137.5 degrees
         planet.rotation_angle = static_cast<float>(i) * 0.7f;
         planet.laps_completed = 0.0f;
 
         planets_.push_back(planet);
     }
+
+    // --- The asteroid belt ---
+    //
+    // The belt lives in the gap between Mars and Jupiter. We take the two
+    // real orbit radii we have just worked out and fill the space between
+    // them with a flattened ring of rock.
+    //
+    // The real belt starts about 2.1 AU from the sun and ends about 3.3 AU.
+    // Between Mars (1.52 AU) and Jupiter (5.20 AU) that is the middle
+    // third of the gap -- which is where we put it.
+    const float mars_orbit  = planets_[3].orbit_radius;
+    const float jupiter_orbit = planets_[4].orbit_radius;
+
+    asteroid_belt_.count = 9000;
+    asteroid_belt_.inner_radius = mars_orbit + (jupiter_orbit - mars_orbit) * 0.22f;
+    asteroid_belt_.outer_radius = mars_orbit + (jupiter_orbit - mars_orbit) * 0.72f;
+    asteroid_belt_.half_thickness = 0.55f;
+    asteroid_belt_.point_size = 1.3f;
+    asteroid_belt_.brightness = 0.85f;
 }
 
 void SolarSystem::update(float delta_seconds)

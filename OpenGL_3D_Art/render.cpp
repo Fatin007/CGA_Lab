@@ -182,7 +182,11 @@ bool Renderer::initialise()
         find_asset_path(shader_folder + "line.vert"),
         find_asset_path(shader_folder + "line.frag"));
 
-    shaders_ok_ = planet_ok && sun_ok && star_ok && ring_ok && line_ok;
+    const bool asteroid_ok = asteroid_shader_.load_from_files(
+        find_asset_path(shader_folder + "asteroid.vert"),
+        find_asset_path(shader_folder + "asteroid.frag"));
+
+    shaders_ok_ = planet_ok && sun_ok && star_ok && ring_ok && line_ok && asteroid_ok;
 
     if (!shaders_ok_)
     {
@@ -236,10 +240,12 @@ bool Renderer::initialise()
             // The ring mesh is built for a planet of radius 1, so these
             // numbers are in planet radii.
             //
-            // Saturn's rings actually start about 1.11 radii out and end
-            // about 2.27 radii out. We use a slightly tighter inner edge so
-            // the rings stand clear of the planet.
-            const Mesh ring = make_ring(1.25f, 2.20f, 128);
+            // Saturn's rings start about 1.11 radii out and end about 2.27
+            // radii out. Uranus's rings are narrower -- they are narrow
+            // bands of rock rather than a wide sheet of ice -- so each
+            // planet gets its own mesh built from its own numbers.
+            const Mesh ring = make_ring(planet.ring_inner_radius,
+                                        planet.ring_outer_radius, 128);
             create_mesh(ring, rings_[i].vao, rings_[i].vbo,
                         rings_[i].ebo, rings_[i].index_count);
         }
@@ -378,6 +384,111 @@ bool Renderer::initialise()
         glBindVertexArray(0);
     }
 
+    // --- The asteroid belt ---
+    //
+    // The belt is another cloud of GL_POINTS, but unlike the stars these
+    // live in real world space, between Mars and Jupiter.
+    {
+        const AsteroidBelt& belt = system.asteroid_belt();
+
+        // Interleaved: position (3), brightness (1), size (1) = 5 floats.
+        std::vector<float> belt_data;
+        belt_data.reserve(static_cast<size_t>(belt.count) * 5);
+
+        std::random_device random_device;
+        std::mt19937 random_engine(random_device());
+
+        // The distance from the sun. We use a square root so that the
+        // asteroids are spread evenly along the belt rather than bunching
+        // up at the inner edge -- the same trick we use for the planets.
+        std::uniform_real_distribution<float> radial_distribution(
+            std::sqrt(belt.inner_radius), std::sqrt(belt.outer_radius));
+
+        // How high above the plane of the orbits the asteroid floats. Most
+        // asteroids stay very close to the plane, so we use a distribution
+        // that pulls them inwards, and then scale it by the belt's own
+        // thickness.
+        std::uniform_real_distribution<float> height_distribution(-1.0f, 1.0f);
+        std::uniform_real_distribution<float> angle_distribution(0.0f, 2.0f * 3.14159265f);
+
+        // How bright each asteroid is. The belt looks best when there are a
+        // lot of very faint rocks and a few brighter ones, so we square the
+        // random number to push the distribution towards the dim end.
+        std::uniform_real_distribution<float> brightness_distribution(0.0f, 1.0f);
+
+        // The size of the dot. A few of the asteroids are noticeably bigger
+        // than the rest.
+        std::uniform_real_distribution<float> size_distribution(0.5f, 2.0f);
+
+        for (int i = 0; i < belt.count; ++i)
+        {
+            // The distance from the sun.
+            //
+            // We take the square root of the random number, which spreads
+            // the asteroids evenly ALONG the belt instead of bunching them
+            // up at the inner edge. (The same reason we use a square root
+            // for the planet orbits.)
+            const float radius = radial_distribution(random_engine);
+            const float radius_squared = radius * radius;
+
+            // Where round the sun it is.
+            const float angle = angle_distribution(random_engine);
+
+            // How high above the plane it floats.
+            //
+            // We square the height so that the asteroids cluster near the
+            // plane, which is what gives the belt its flat, disc-like shape
+            // when you look at it edge on.
+            const float height = height_distribution(random_engine) *
+                                 height_distribution(random_engine) *
+                                 belt.half_thickness;
+
+            belt_data.push_back(radius_squared * std::cos(angle));
+            belt_data.push_back(height);
+            belt_data.push_back(radius_squared * std::sin(angle));
+
+            // The brightness.
+            //
+            // Most of the rocks are dim and a few are brighter. We square
+            // the random number to push the distribution towards the dim
+            // end -- but not so far that the rocks in front of a bright
+            // planet turn into black specks.
+            const float brightness_value = brightness_distribution(random_engine);
+            belt_data.push_back(belt.brightness * (0.45f + brightness_value * brightness_value * 0.55f));
+
+            // The size. The biggest rocks stand out a little.
+            belt_data.push_back(belt.point_size * size_distribution(random_engine));
+        }
+
+        asteroid_count_ = belt.count;
+
+        glGenVertexArrays(1, &asteroid_vao_);
+        glBindVertexArray(asteroid_vao_);
+
+        glGenBuffers(1, &asteroid_vbo_);
+        glBindBuffer(GL_ARRAY_BUFFER, asteroid_vbo_);
+        glBufferData(GL_ARRAY_BUFFER,
+                     static_cast<GLsizeiptr>(belt_data.size() * sizeof(float)),
+                     belt_data.data(),
+                     GL_STATIC_DRAW);
+
+        // Attribute 0: position (3 floats).
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+
+        // Attribute 1: brightness (1 float).
+        glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
+                              (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+
+        // Attribute 2: size (1 float).
+        glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
+                              (void*)(4 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+
+        glBindVertexArray(0);
+    }
+
     return true;
 }
 
@@ -394,6 +505,30 @@ void Renderer::draw_stars(const math3d::Mat4& view, const math3d::Mat4& projecti
 
     glBindVertexArray(star_vao_);
     glDrawArrays(GL_POINTS, 0, star_count_);
+    glBindVertexArray(0);
+}
+
+// ---------------------------------------------------------------------------
+// Drawing the asteroid belt.
+//
+// The belt is a cloud of GL_POINTS between Mars and Jupiter. The points are
+// in real world space, so they use the full view matrix and they turn round
+// with the camera in the way a real belt would.
+//
+// They are drawn with the depth test ON, so a planet in front of the belt
+// correctly hides the rocks behind it.
+// ---------------------------------------------------------------------------
+void Renderer::draw_asteroids(const math3d::Mat4& view, const math3d::Mat4& projection,
+                              float time)
+{
+    asteroid_shader_.use();
+
+    asteroid_shader_.set_mat4("uView", view);
+    asteroid_shader_.set_mat4("uProjection", projection);
+    asteroid_shader_.set_float("uTime", time);
+
+    glBindVertexArray(asteroid_vao_);
+    glDrawArrays(GL_POINTS, 0, asteroid_count_);
     glBindVertexArray(0);
 }
 
@@ -628,12 +763,16 @@ void Renderer::draw_rings(const Planet& planet, const SolarSystem& system,
     ring_shader_.set_mat4("uView", view);
     ring_shader_.set_mat4("uProjection", projection);
 
-    ring_shader_.set_vec3("uRingColour", math3d::Vec3(0.85f, 0.78f, 0.62f));
+    ring_shader_.set_vec3("uRingColour", planet.ring_colour);
     ring_shader_.set_vec3("uSunPosition", math3d::Vec3(0.0f, 0.0f, 0.0f));
     ring_shader_.set_vec3("uEyePosition", eye);
     ring_shader_.set_vec3("uPlanetPosition", position);
 
     ring_shader_.set_float("uPlanetRadius", planet.radius);
+
+    // How bright the rings are. Saturn's are bright water ice; Uranus's are
+    // narrow, dark bands of rock that you can barely make out.
+    ring_shader_.set_float("uRingBrightness", planet.ring_brightness);
 
     // The rings are see-through, so we blend them.
     glEnable(GL_BLEND);
@@ -686,15 +825,31 @@ void Renderer::draw(const SolarSystem& system, const Camera& camera,
     // --- The orbit lines ---
     draw_orbits(system, view, projection, eye);
 
+    // --- The asteroid belt ---
+    //
+    // The belt goes after the orbit lines but before the planets, so the
+    // planets (and the sun's glow) are drawn over it.
+    draw_asteroids(view, projection, time_seconds);
+
     // --- The planets and their rings ---
     for (const Planet& planet : system.planets())
     {
-        // The rings go first, because they are partly transparent and the
-        // planet has to be drawn over them where it is in front.
+        // The planet goes FIRST and writes to the depth buffer.
+        draw_planet(planet, system, view, projection, eye, time_seconds);
+
+        // The rings go AFTER, with the depth test still on.
+        //
+        // This is what makes the ring and the planet sort correctly:
+        //
+        //   * the part of the ring behind the planet is rejected by the
+        //     depth test, because the planet is nearer
+        //   * the part of the ring in front of the planet is drawn over it
+        //
+        // If we drew the rings first they would have nothing to test
+        // against, and the planet would paint over the near half of the
+        // ring -- which looked like the ring had a chunk missing from it.
         if (planet.has_rings)
             draw_rings(planet, system, view, projection, eye);
-
-        draw_planet(planet, system, view, projection, eye, time_seconds);
     }
 
     // --- The sun ---

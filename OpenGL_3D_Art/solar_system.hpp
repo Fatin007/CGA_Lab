@@ -44,6 +44,16 @@ struct Planet
     float  axial_tilt_degrees;   // how much it leans over
     bool   has_rings;            // Saturn (and a faint hint for Uranus)
 
+    // The look of the rings.
+    //
+    // Saturn's rings are bright and golden, because they are made of
+    // water ice. Uranus's rings are much darker and greyer -- they are
+    // narrow bands of dark rock, and you can barely see them.
+    math3d::Vec3 ring_colour;
+    float  ring_brightness;      // how bright the rings are (0 = none)
+    float  ring_inner_radius;    // where the rings start, in planet radii
+    float  ring_outer_radius;    // where the rings end, in planet radii
+
     // --- Size and position ---
     float  radius;               // its size on screen
     float  orbit_radius;         // how far it is from the sun, on screen
@@ -73,6 +83,41 @@ struct Sun
 };
 
 // ---------------------------------------------------------------------------
+// The asteroid belt.
+//
+// The belt is the ring of rocky debris that orbits the sun between Mars
+// and Jupiter. It is not a planet and it has no sphere of its own -- it is
+// a vast cloud of separate lumps of rock, each on its own orbit.
+//
+// We draw it as a cloud of points rather than as real geometry, because
+// there are tens of thousands of them and each one is far too small to see
+// as a shape. As points they read exactly the way the real belt looks:
+// a faint, dusty band across the sky.
+// ---------------------------------------------------------------------------
+struct AsteroidBelt
+{
+    // How many asteroids to scatter.
+    int count = 0;
+
+    // The inner and outer edge of the belt, in the same world units as the
+    // planet orbits. The gap between Mars and Jupiter is wide, and the belt
+    // does not fill it edge to edge.
+    float inner_radius = 0.0f;
+    float outer_radius = 0.0f;
+
+    // How thick the belt is. The real belt is very flat -- most of the
+    // asteroids stay within a few million kilometres of the plane of the
+    // orbits -- so this is small compared with the radius.
+    float half_thickness = 0.0f;
+
+    // The point size of each asteroid, and how bright it is. These are the
+    // two things that make the belt visible without making it look like a
+    // ring of fairy lights.
+    float point_size = 1.0f;
+    float brightness = 0.5f;
+};
+
+// ---------------------------------------------------------------------------
 // Builds the whole solar system.
 //
 // The order is always: sun first, then the planets from Mercury outwards.
@@ -84,6 +129,7 @@ public:
 
     const std::vector<Planet>& planets() const { return planets_; }
     const Sun& sun() const { return sun_; }
+    const AsteroidBelt& asteroid_belt() const { return asteroid_belt_; }
 
     // Advances the simulation by the given number of seconds.
     //
@@ -104,6 +150,7 @@ public:
 private:
     std::vector<Planet> planets_;
     Sun sun_;
+    AsteroidBelt asteroid_belt_;
 };
 
 // The compression factors, exposed so the renderer and the console printout

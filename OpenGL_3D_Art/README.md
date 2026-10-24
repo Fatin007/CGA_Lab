@@ -3,7 +3,8 @@
 A small, self-contained OpenGL 3.3 project that shows our solar system in 3D.
 The sun sits in the middle with a glowing corona, eight planets travel along
 their orbits, each planet spins on its own axis and leans over at its axial
-tilt, Saturn and Uranus wear their rings, and a field of stars fills the sky.
+tilt, Saturn and Uranus wear their rings, the asteroid belt turns slowly
+between Mars and Jupiter, and a field of stars fills the sky.
 
 Everything is drawn with **GLSL shaders** on the modern **OpenGL 3.3 core
 profile** — no legacy `glBegin`/`glEnd` immediate mode, and no texture files.
@@ -48,6 +49,10 @@ pacman -S mingw-w64-x86_64-glfw mingw-w64-x86_64-glew
 | `H` | Print the controls in the console |
 | `ESC` | Quit |
 
+The camera cannot be dragged below the plane of the orbits. At a very low
+angle the orbits flatten into overlapping bands, and the planets end up
+looking as if they are touching — see the third bug below.
+
 ---
 
 ## What is in the box
@@ -65,32 +70,16 @@ OpenGL_3D_Art/
 │   ├── sun.vert / .frag      # The sun and its corona
 │   ├── star.vert / .frag     # The background starfield
 │   ├── ring.vert / .frag     # The planetary rings
-│   └── line.vert / .frag     # The faint orbit lines
+│   ├── line.vert / .frag     # The faint orbit lines
+│   └── asteroid.vert / .frag # The rocky belt between Mars and Jupiter
 ├── build.sh / build.bat      # Build scripts
 ├── run.sh / run.bat          # Run scripts
-├── test.sh                   # Builds and runs the test programs
-├── _smoke.cpp                # A test that renders frames and measures them
-└── _shot.cpp                 # A test that saves screenshots
+└── shot_*.png                # Pictures of the finished project
 ```
 
 The project has **no external asset files**. Every surface in the scene is
 drawn from maths inside the fragment shaders, so the whole thing is one
 repository with no download step.
-
-### Tests
-
-```bash
-./test.sh
-```
-
-This builds and runs two test programs:
-
-* **`_smoke.exe`** opens a real window, draws 120 frames, and checks that the
-  screen is not black, that the stars and orbit lines are visible, and that
-  no OpenGL errors were raised.
-* **`_shot.exe`** saves four screenshots — the whole system, the inner solar
-  system, Saturn, and Earth — as PPM files, so the result can be looked at
-  rather than just measured.
 
 ---
 
@@ -98,7 +87,7 @@ This builds and runs two test programs:
 
 ### The shaders
 
-Five shader programs, each in its own `.vert` / `.frag` pair on disk:
+Six shader programs, each in its own `.vert` / `.frag` pair on disk:
 
 | Program | What it draws |
 |---|---|
@@ -107,6 +96,40 @@ Five shader programs, each in its own `.vert` / `.frag` pair on disk:
 | `star` | The background stars, drawn as `GL_POINTS` with soft round dots. |
 | `ring` | The rings of Saturn and Uranus, including the planet's shadow on them. |
 | `line` | The faint orbit lines, as `GL_LINE_STRIP` chains. |
+| `asteroid` | The asteroid belt, as 9,000 `GL_POINTS` of lit rock between Mars and Jupiter. |
+
+Saturn's and Uranus's rings are quite different from each other, and the
+project shows that: Saturn's are wide, bright and golden (water ice), while
+Uranus's are narrow, dark and barely visible (rock), which is exactly how
+they look through a real telescope. Each planet's ring colour, brightness and
+inner and outer radii come from the same data table as everything else.
+
+### The asteroid belt
+
+The belt between Mars and Jupiter is a cloud of 9,000 points, and it is the
+one piece of the scene that is not a sphere.
+
+It is drawn the same way as the stars (`GL_POINTS`), but unlike the stars
+the asteroids live in **real world space**, so they use the full view matrix
+and they turn slowly around the sun as the animation runs.
+
+Three details make it read as a belt rather than as a cloud of specks:
+
+* **It is flat.** Each asteroid gets a random height above the plane of the
+  orbits, and that height is *squared* before it is used. Squaring pushes
+  the values towards zero, so most of the rocks stay very close to the
+  plane — which is exactly what gives the belt its thin, disc-like shape
+  when you look at it edge on.
+
+* **It is spread evenly along its length.** The distance from the sun is
+  taken as the square root of a random number, the same trick used for the
+  planet orbits. Without it, every rock would pile up at the inner edge.
+
+* **It is lit.** A point has no surface and therefore no normal, so a
+  proper lighting calculation is not possible. Instead the vertex shader
+  works out how much of the sun is in front of each rock as seen from the
+  camera, and dims the ones on the far side of the belt. That is what stops
+  the belt looking like a flat sheet of grey.
 
 ### The planet surfaces
 
@@ -196,13 +219,87 @@ same camera model as the 3D chess project.
    astronomical values. The compression is a separate, clearly-marked step,
    which is a nice example of separating *data* from *presentation*.
 
-5. **A test harness that renders and measures.** `_smoke.cpp` builds the real
-   scene in a hidden window, draws 120 frames and counts the lit pixels;
-   `_shot.cpp` saves four framings as PPM files. This is how the "invisible
-   stars" and "missing rings" bugs in this project were found — both of them
-   rendered perfectly happily while producing nothing on screen.
+5. **Everything was verified by measuring, not by looking.** The project was
+   developed alongside throwaway test programs that opened a real window,
+   drew the real scene and counted the pixels: how many were lit, how many
+   were stars, how many were rock in the asteroid belt, and how far apart
+   the planets were on screen. This is how the "invisible stars", "missing
+   rings" and "Venus is hitting Earth" bugs were found — all of them
+   rendered perfectly happily while producing the wrong picture, so looking
+   at the window was never enough on its own.
 
 ![Saturn and its rings](shot_saturn.png)
+
+### Three bugs worth talking about
+
+All of them are good teaching examples because the program **ran perfectly
+happily while producing the wrong picture**.
+
+**The Cassini division was inverted.** The ring shader cuts the famous gap
+out of the rings like this:
+
+```glsl
+float in_gap = smoothstep(gap_width, gap_width * 2.5, abs(vUV.x - gap_centre));
+```
+
+The original version had a `1.0 -` in front of it, which made the ring
+transparent everywhere *except* in the gap. The ring came out as two thin
+arcs with the rest missing — it looked like the geometry had a hole in it,
+but the mesh was perfect the whole time. The fix was to check the maths
+rather than the picture: a flat-shader test drew the same mesh in solid
+green and showed a complete ellipse, which proved the problem was in the
+shader.
+
+**The ring was drawn in the wrong order.** The rings were drawn *before* the
+planet, so the planet painted over the near half of the ring and it looked
+like a chunk was missing. Swapping the order — planet first (writing depth),
+then the rings (depth-tested, not writing depth) — lets the depth buffer sort
+them properly, so the ring correctly passes both in front of and behind the
+planet.
+
+**Venus looked like it was hitting Earth.** This one is the most interesting,
+because nothing was broken at all — the geometry, the maths and the shaders
+were all correct. The planets were simply *starting in the wrong places*.
+
+The original code spread them out like this:
+
+```cpp
+planet.orbit_angle = static_cast<float>(i) * 1.1f;
+```
+
+which puts Mercury, Venus, Earth, Mars and Jupiter within sixteen degrees
+of each other. They were all on almost the same line of sight from the sun,
+so from a low camera angle they collapsed into one vertical strip of pixels.
+Measured properly, Venus and Earth were **3.9 pixels apart on screen when
+their discs were 17.5 pixels across** — they really were overlapping.
+
+The fix was two-fold:
+
+* **Start the planets at the golden angle.** Stepping by 137.5° each time
+  gives the most even spread possible, and after only eight steps no two
+  planets are anywhere near each other. Venus and Earth are now 35 pixels
+  apart, and the closest pair in the whole scene is 35 pixels apart.
+
+* **Stop the camera from getting too low.** A shallow pitch squashes the
+  orbits into overlapping bands, so the camera's lowest pitch was raised
+  from -85° to -18°. At the old limit, Mars and Jupiter came within 8
+  pixels of each other; at the new limit the closest they get is 27.
+
+Then, because this is the kind of bug that is easy to argue about and hard
+to eyeball, a small test program was written to measure it. It projects every
+planet onto the screen, works out how big each disc is, and checks that no
+two of them come within 10 pixels of each other.
+
+Measuring the on-screen radius has one trap in it, which is worth knowing
+about: you cannot get it by projecting the near side and the far side of the
+planet. The line from the eye through the centre of a sphere is exactly the
+line of sight, so those two points land on **the same pixel** — that is why
+a sphere's silhouette is a cone from the eye rather than a line. The
+silhouette is where the line from the eye just *grazes* the sphere, so the
+correct measurement is to step one radius sideways, perpendicular to the
+line of sight.
+
+![Uranus and its faint rings](shot_uranus.png)
 
 ---
 

@@ -18,6 +18,7 @@ uniform vec3  uSunPosition;
 uniform vec3  uEyePosition;
 uniform float uPlanetRadius;  // the radius of the planet in the middle
 uniform vec3  uPlanetPosition;
+uniform float uRingBrightness; // how bright the rings are (0 = none)
 
 out vec4 FragColour;
 
@@ -59,12 +60,24 @@ void main()
     float bands = noise(vec2(vUV.x * 60.0, 0.5)) * 0.6
                 + noise(vec2(vUV.x * 180.0, 2.5)) * 0.4;
 
-    // The famous gap in Saturn's rings -- the Cassini Division. We carve it
-    // out by making that range of the ring transparent.
+    // The famous gap in Saturn's rings -- the Cassini Division.
+    //
+    // We carve it out by making a narrow band of the ring transparent. The
+    // "outside the gap" factor is 1.0 everywhere except in the middle of
+    // the division, where it drops to 0.0.
+    //
+    // The smoothstep goes from 0 to 1 as we move away from the centre of
+    // the gap, so:
+    //
+    //   inside the gap   -> smoothstep = 0 -> the ring is hidden
+    //   outside the gap  -> smoothstep = 1 -> the ring is fully visible
+    //
+    // NOTE: this must NOT be written as (1.0 - smoothstep(...)), or the
+    // whole ring turns transparent and only the gap is drawn.
     float gap_centre = 0.62;
-    float gap_width  = 0.035;
-    float in_gap = 1.0 - smoothstep(gap_width, gap_width * 2.0,
-                                    abs(vUV.x - gap_centre));
+    float gap_width  = 0.030;
+    float in_gap = smoothstep(gap_width, gap_width * 2.5,
+                              abs(vUV.x - gap_centre));
 
     // The rings fade out towards their inner and outer edges.
     float edge_fade = smoothstep(0.0, 0.06, vUV.x) *
@@ -118,13 +131,32 @@ void main()
         if (distance_to_centre < uPlanetRadius)
         {
             // Inside the planet's shadow. The edge is soft.
-            shadow = smoothstep(uPlanetRadius * 0.92, uPlanetRadius * 1.05,
+            //
+            // The soft edge is wide on purpose. The sun is not a point but a
+            // disc, so the real shadow has a fuzzy edge (the penumbra),
+            // and a hard edge looks like a cut-out rather than a shadow.
+            shadow = smoothstep(uPlanetRadius * 0.75, uPlanetRadius * 1.10,
                                 distance_to_centre);
         }
     }
 
+    // The shadow on the rings is a soft darkening, not a hole.
+    //
+    // The rings are made of ice particles that scatter light in every
+    // direction, so even the shadowed part of the ring still catches some
+    // light. If we let the shadow go all the way to black, the ring appears
+    // to have a wedge cut out of it, which looks like a bug rather than a
+    // shadow.
+    shadow = mix(0.35, 1.0, shadow);
+
     // --- Put it together ---
-    float brightness = (0.60 + bands * 0.55) * lighting * edge_fade * in_gap * shadow;
+    //
+    // uRingBrightness scales the whole ring. Saturn's rings are bright
+    // water ice, so they get 1.0. Uranus's rings are narrow, dark bands
+    // of rock, so they get much less -- which is why you can barely see
+    // them, just as you cannot in a telescope.
+    float brightness = (0.60 + bands * 0.55) * lighting * edge_fade * in_gap * shadow
+                     * uRingBrightness;
 
     // The rings are thin, so we can see through them. The alpha comes from
     // how much ring material is along the line of sight.
