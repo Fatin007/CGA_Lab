@@ -1,5 +1,5 @@
 // =============================================================================
-//  g++ AhsanManzil.cpp -o AhsanManzil.exe -lfreeglut -lopengl32 -lglu32
+//  g++ ahsan_manzil.cpp -o ahsan_manzil\.exe -lfreeglut -lopengl32 -lglu32
 //
 //  COORDINATE SYSTEM (1 unit ~ 1 metre-ish, derived from the reference image)
 //     X : across the building (left/right)     Y : up     Z : depth
