@@ -1,3 +1,5 @@
+// g++ 06_House.cpp -lfreeglut -lopengl32 -lglu32
+
 #include <GL/glut.h>
 
 void display()
