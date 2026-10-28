@@ -1,9 +1,0 @@
-# Build output
-solar-system.exe
-*.o
-*.obj
-
-# The runtime DLLs are copied in from MSYS2 by build.sh, so they do not need
-# to be tracked. Remove this line if you would rather commit them so the
-# program can be run without MSYS2 installed.
-*.dll
