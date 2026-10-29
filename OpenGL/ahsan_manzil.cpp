@@ -1,11 +1,4 @@
-// =============================================================================
 //  g++ ahsan_manzil.cpp -o ahsan_manzil\.exe -lfreeglut -lopengl32 -lglu32
-//
-//  COORDINATE SYSTEM (1 unit ~ 1 metre-ish, derived from the reference image)
-//     X : across the building (left/right)     Y : up     Z : depth
-//     Front facade faces -Z, building centred on the origin, ground at y = 0.
-//     Overall: width 47.2, wings 10.5 high, centre block 14.3, dome tip ~20.
-// =============================================================================
 
 #include <cmath>
 #include <cstdio>
