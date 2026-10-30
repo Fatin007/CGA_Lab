@@ -1,8 +1,9 @@
-//  g++ ahsan_manzil.cpp -o ahsan_manzil\.exe -lfreeglut -lopengl32 -lglu32
+//  g++ ahsan_manzil.cpp -o ahsan_manzil.exe -lfreeglut -lopengl32 -lglu32
 
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <time.h>
 #include <GL/freeglut.h>
 #include <GL/glu.h>
 
@@ -40,6 +41,44 @@ static bool showHelp = true;
 static GLUquadric *gQuad = NULL;
 
 // ----------------------------------------------------------------------------
+// 2b. Build-up animation state (uses time.h)
+// ----------------------------------------------------------------------------
+static const float STAGE_DELAY = 0.9f; // seconds between build stages
+static const int TOTAL_STAGES = 6;     // base, stairs, front, back, sides, dome
+static clock_t startTime = 0;
+static int visibleStages = 0;
+static bool animating = true;
+
+static void restartAnimation()
+{
+    startTime = clock();
+    visibleStages = 0;
+    animating = true;
+}
+
+static void updateStages()
+{
+    double elapsed = (double)(clock() - startTime) / CLOCKS_PER_SEC;
+    int s = (int)(elapsed / STAGE_DELAY) + 1; // first stage appears immediately
+    if (s >= TOTAL_STAGES)
+    {
+        s = TOTAL_STAGES;
+        animating = false;
+    }
+    visibleStages = s;
+}
+
+static void tick(int)
+{
+    if (!animating)
+        return;
+    updateStages();
+    glutPostRedisplay();
+    if (animating)
+        glutTimerFunc(16, tick, 0); // ~60 fps
+}
+
+// ----------------------------------------------------------------------------
 // 3. Colours (fixed-function material colours)
 // ----------------------------------------------------------------------------
 struct Col
@@ -58,7 +97,8 @@ static const Col C_RIB = {0.73f, 0.34f, 0.30f};
 static const Col C_STONE = {0.85f, 0.61f, 0.56f};
 static const Col C_STONE_LT = {0.96f, 0.73f, 0.67f};
 static const Col C_STAIR_SIDE = {0.72f, 0.42f, 0.39f};
-static const Col C_GROUND = {0.58f, 0.49f, 0.34f};
+// static const Col C_GROUND = {0.58f, 0.49f, 0.34f};
+static const Col C_GROUND = {0.25f, 0.55f, 0.20f};
 static const Col C_PLAZA = {0.72f, 0.59f, 0.44f};
 static const Col C_CLOUD = {0.99f, 0.99f, 1.00f};
 
@@ -67,9 +107,6 @@ static void setCol(const Col &c) { glColor3f(c.r, c.g, c.b); }
 // ----------------------------------------------------------------------------
 // 4. Basic geometry helpers
 // ----------------------------------------------------------------------------
-
-// Axis aligned box with per-face normals. Bottom face is skipped for objects
-// resting on the ground (y0 ~ 0).
 static void drawCuboid(float x0, float y0, float z0, float x1, float y1, float z1)
 {
     glBegin(GL_QUADS);
@@ -697,7 +734,7 @@ static void drawSideDetails()
 }
 
 // ----------------------------------------------------------------------------
-// 9. Main building
+// 9. Main building (built up stage by stage)
 // ----------------------------------------------------------------------------
 static void drawBaseBlocks()
 {
@@ -734,29 +771,44 @@ static void drawBaseBlocks()
 
 static void drawMainBuilding()
 {
-    drawBaseBlocks();
+    if (visibleStages >= 1)
+        drawBaseBlocks();
 
-    // front and back facades (back = front mirrored in Z)
-    glPushMatrix();
-    drawFacadeDetails();
-    glPopMatrix();
-    glPushMatrix();
-    glScalef(1.0f, 1.0f, -1.0f);
-    drawFacadeDetails();
-    glPopMatrix();
+    if (visibleStages >= 2)
+        drawStaircase();
+
+    // front facade
+    if (visibleStages >= 3)
+    {
+        glPushMatrix();
+        drawFacadeDetails();
+        glPopMatrix();
+    }
+
+    // back facade (front mirrored in Z)
+    if (visibleStages >= 4)
+    {
+        glPushMatrix();
+        glScalef(1.0f, 1.0f, -1.0f);
+        drawFacadeDetails();
+        glPopMatrix();
+    }
 
     // left and right side walls
-    glPushMatrix();
-    glRotatef(90.0f, 0, 1, 0);
-    drawSideDetails();
-    glPopMatrix();
-    glPushMatrix();
-    glRotatef(-90.0f, 0, 1, 0);
-    drawSideDetails();
-    glPopMatrix();
+    if (visibleStages >= 5)
+    {
+        glPushMatrix();
+        glRotatef(90.0f, 0, 1, 0);
+        drawSideDetails();
+        glPopMatrix();
+        glPushMatrix();
+        glRotatef(-90.0f, 0, 1, 0);
+        drawSideDetails();
+        glPopMatrix();
+    }
 
-    drawDome();
-    drawStaircase();
+    if (visibleStages >= 6)
+        drawDome();
 }
 
 // ----------------------------------------------------------------------------
@@ -889,7 +941,7 @@ static void printControls()
 {
     printf("\n");
     printf("============================================\n");
-    printf("       AHSAN MANZIL - 3D MODEL\n");
+    printf("       AHSAN MANZIL\n");
     printf("============================================\n");
     printf(" Mouse drag     : Orbit camera\n");
     printf(" Mouse wheel    : Zoom in / out\n");
@@ -899,6 +951,7 @@ static void printControls()
     printf(" + / -          : Zoom in / out\n");
     printf(" Arrow keys     : Rotate / change elevation\n");
     printf(" R              : Reset camera\n");
+    printf(" N              : Replay build animation\n");
     printf(" ESC            : Exit\n");
     printf("============================================\n\n");
 }
@@ -1010,6 +1063,11 @@ static void keyboard(unsigned char key, int, int)
     case 'R':
         resetCamera();
         break;
+    case 'n':
+    case 'N':
+        restartAnimation();
+        glutTimerFunc(16, tick, 0);
+        break;
     case 'h':
     case 'H':
         showHelp = !showHelp;
@@ -1026,10 +1084,10 @@ static void special(int key, int, int)
     switch (key)
     {
     case GLUT_KEY_LEFT:
-        cameraAzimuth -= 3.0f;
+        cameraAzimuth += 3.0f;
         break;
     case GLUT_KEY_RIGHT:
-        cameraAzimuth += 3.0f;
+        cameraAzimuth -= 3.0f;
         break;
     case GLUT_KEY_UP:
         cameraElevation += 2.0f;
@@ -1089,6 +1147,10 @@ int main(int argc, char **argv)
     glutMouseWheelFunc(mouseWheel);
     glutKeyboardFunc(keyboard);
     glutSpecialFunc(special);
+
+    // start the build-up animation
+    restartAnimation();
+    glutTimerFunc(16, tick, 0);
 
     glutMainLoop();
     return 0;
